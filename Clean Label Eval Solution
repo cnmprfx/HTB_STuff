@@ -1,0 +1,69 @@
+# Implement the clean label attack logic here
+    X_train_poisoned = X_train_orig.copy()
+    y_train_poisoned = (y_train_orig.copy())
+    perturbed_indices = []
+    X_target_point = X_train_orig[target_idx]
+    class2_indices_train = np.where(y_train_orig == perturb_class)[0]
+    X_class2_train = X_train_orig[class2_indices_train]
+    nn_finder = NearestNeighbors(n_neighbors=n_neighbors, algorithm='auto')
+    
+    nn_finder.fit(X_class2_train)
+    
+    distances, indices_relative = nn_finder.kneighbors(X_target_point.reshape(1,-1))
+    neighbor_indices_absolute = class2_indices_train[indices_relative.flatten()]
+    X_neighbors = X_train_orig[neighbor_indices_absolute]
+    
+    
+    for i, neighbor_idx in enumerate(neighbor_indices_absolute):
+        X_neighbor_original = X_neighbors[i]  # Original feature vector of the i-th neighbor
+        direction = X_target_point - X_neighbor_original
+        perturbation_vector = epsilon_cross * direction
+    # Calculate the new position of the perturbed neighbor
+        X_perturbed_neighbor = X_neighbor_original + perturbation_vector
+
+    # Replace the original neighbor's features with the perturbed features in the copied dataset
+        X_train_poisoned[neighbor_idx] = X_perturbed_neighbor
+  
+
+        perturbed_indices.append(neighbor_idx)  # Record the index that was modified
+    
+    
+    
+    return X_train_poisoned, y_train_poisoned, perturbed_indices
+
+try:
+    X_train_poisoned, y_train_poisoned, perturbed_indices = perform_clean_label_attack(
+        X_train,
+        y_train,
+        target_index,
+        TARGET_CLASS,
+        PERTURBING_CLASS,
+        N_NEIGHBORS,
+        EPSILON_CROSS,
+        SEED,
+    )
+    print(f"\nAttack function executed. Poisoned data shape: {X_train_poisoned.shape}")
+    print(f"Indices perturbed: {perturbed_indices}")
+
+    print("\n--- Training Final Model on Poisoned Data ---")
+    poisoned_model = OneVsRestClassifier(
+        LogisticRegression(random_state=SEED, C=0.1, solver="liblinear") #made 'C=' lower to increase regularization and that did the trick to push the target point over to the desired class
+    )
+    poisoned_model.fit(X_train_poisoned, y_train_poisoned)
+    print("Final model trained successfully on poisoned data.")
+
+    attack_logic_successful = True
+
+except Exception as e:
+    print(
+        f"\n{malware_red}Error during attack execution or poisoned model training:{white} {e}"
+    )
+    print("Cannot proceed to evaluation or submission.")
+    attack_logic_successful = False
+     #Assign placeholder values to allow subsequent cells to run without crashing immediately
+    X_train_poisoned, y_train_poisoned, perturbed_indices = (
+        X_train,
+        y_train,
+        np.array([]),
+    )
+    poisoned_model = None   #Indicate model training failed
